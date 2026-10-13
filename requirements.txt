@@ -1,0 +1,17 @@
+torch>=2.4
+torchvision
+timm
+transformers>=5.15
+huggingface_hub
+sentence-transformers
+opencv-python
+numpy
+pandas
+pillow
+scikit-learn
+tqdm
+pyyaml
+httpx
+# GazeAnywhere only
+ftfy
+fvcore

@@ -1,0 +1,18 @@
+vqa_dir: data/vqa
+predictions_csv: outputs/tracking/gazelle_tracking.csv
+frames_dir: data/frames
+output_csv: outputs/vqa/qwen3.5-27b.csv
+
+# Served model names of the two vLLM servers (vllm serve ... --served-model-name).
+answer_url: http://localhost:8000/v1
+answer_model: qwen3.5-27b
+judge_url: http://localhost:8001/v1
+judge_model: qwen3.8-27b
+
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+model_cache_dir: model_cache
+
+max_concurrency: 128
+max_new_tokens: 4096
+judge_max_new_tokens: 4096
+request_timeout: 120

@@ -1,0 +1,27 @@
+# Fill these in with where you put the data (see README's Data Preparation section).
+labels_dir: data/labels
+frames_dir: data/frames
+output_csv: outputs/tracking/gazelle_tracking.csv
+
+estimator: gazelle        # gazelle | gaze_anywhere
+dense: false              # true runs the estimator on every frame (baseline)
+device: cuda
+
+# Every auto-downloaded model shares this one folder.
+model_cache_dir: model_cache
+gazelle_repo: fkryan/gazelle
+gazelle_model: gazelle_dinov2_vitl14_inout
+gaze_anywhere_model: IrohXu/GazeAnywhere
+gaze_anywhere_repo: /path/to/GazeAnywhere     # only needed for gaze_anywhere
+
+# OpenFace 3.0 repo and its multitask checkpoint
+openface_root: /path/to/OpenFace-3.0
+openface_checkpoint: /path/to/OpenFace-3.0/weights/stage2_epoch_7_loss_1.1606_acc_0.5589.pth
+
+# Re-run the estimator when the head/eye direction changes by more than this
+# between consecutive frames, or when the tracked point drifts more than
+# drift_head_diagonals head diagonals from the last estimate.
+trigger_threshold_deg: 2.0
+min_peak_distance: 3
+drift_head_diagonals: 1.0
+inout_threshold: 0.35
