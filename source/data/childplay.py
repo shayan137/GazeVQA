@@ -46,3 +46,18 @@ def load_labels(labels_dir, frames_dir) -> pd.DataFrame:
     rows["image_path"] = [str(frame_path(frames_dir, c, f)) for c, f in zip(rows["clip"], rows["frame"])]
     rows["image_exists"] = [Path(p).is_file() for p in rows["image_path"]]
     return rows
+
+
+def propagate_look_like(rows: pd.DataFrame) -> pd.DataFrame:
+    """The appearance description is annotated on one frame per person; copy
+    the first one found in each (clip, person_id) track to all of its frames."""
+    rows = rows.copy()
+    first_seen = (
+        rows[rows["look_like"].notna()]
+        .sort_values(["clip", "person_id", "frame"])
+        .groupby(["clip", "person_id"])["look_like"]
+        .first()
+    )
+    keys = list(zip(rows["clip"], rows["person_id"]))
+    rows["look_like"] = [first_seen.get(k, pd.NA) for k in keys]
+    return rows

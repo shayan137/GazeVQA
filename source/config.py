@@ -21,7 +21,7 @@ class TrackingConfig:
     frames_dir: str  # extracted frames, <clip>/<clip>_<frame:06d>.jpg
     output_csv: str
 
-    estimator: str = "gazelle"  # gazelle | gaze_anywhere
+    estimator: str = "gazelle"  # gazelle | gaze_anywhere | cached
     dense: bool = False  # run the estimator on every frame (baseline)
     device: str = "cuda"
 
@@ -33,9 +33,20 @@ class TrackingConfig:
     gaze_anywhere_model: str = "IrohXu/GazeAnywhere"
     gaze_anywhere_repo: str = ""  # local clone of github.com/IrohXu/GazeAnywhere
 
+    # estimator: cached -> dense prediction cache (.npz) written by
+    # benchmarks/gaze_estimators/<model>/export_dense.py
+    cache_path: str = ""
+
     # OpenFace 3.0 multitask model, used to detect head/eye movement
     openface_root: str = ""
     openface_checkpoint: str = ""
+    # yaw/pitch per labelled head crop from an earlier run (head_pose output);
+    # OpenFace only runs for person-frames missing from it
+    openface_cache_csv: str = ""
+
+    # copy each track's appearance description ("look like", annotated on one
+    # frame) to all of its frames, for text-prompted estimators
+    propagate_look_like: bool = False
 
     trigger_threshold_deg: float = 2.0
     min_peak_distance: int = 3
@@ -49,23 +60,24 @@ class TrackingConfig:
 
 @dataclasses.dataclass
 class VQAConfig:
-    vqa_dir: str  # per-clip G3VQA question files, <clip>.json
+    vqa_dir: str  # per-clip G3VQA question files, <clip>.json (question_format json) or csv/test of an annotation package (csv)
     predictions_csv: str  # output of scripts/run_tracking.py
     frames_dir: str
     output_csv: str
 
-    # Both models are served with vLLM's OpenAI-compatible server.
+    # The answering model is served with vLLM's OpenAI-compatible server.
     answer_url: str = "http://localhost:8000/v1"
     answer_model: str = ""
-    judge_url: str = "http://localhost:8001/v1"
-    judge_model: str = "qwen3.8-27b"  # empty -> answer only, judge later with rejudge_vqa.py
 
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    question_format: str = "json"  # json: <clip>.json files; csv: <clip>_VQA.csv + <clip>_temporal.csv
+    extended: bool = False  # also ask group-engagement and the whole-video temporal questions
+    media_dir: str = ""  # output of scripts/render_vqa_inputs.py; missing images are drawn on the fly
+    video_transport: str = "data"  # data: mp4 inside the request, file: path read by the server (--allowed-local-media-path)
+
     model_cache_dir: str = "model_cache"
 
     max_concurrency: int = 128
     max_new_tokens: int = 4096
-    judge_max_new_tokens: int = 4096
     request_timeout: float = 120.0
 
     @classmethod

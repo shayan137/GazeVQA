@@ -33,11 +33,26 @@ def to_bgr(image: Image.Image) -> np.ndarray:
     return np.array(image)[:, :, ::-1].copy()
 
 
+def person_context(row, bbox) -> PersonContext:
+    return PersonContext(
+        head_bbox_px=bbox, description=row.get("look_like"),
+        clip=str(row["clip"]), person_id=str(row["person_id"]), frame=int(row["frame"]),
+    )
+
+
 class GazeTrackingAgent:
     def __init__(self, estimator, inout_threshold: float = 0.35, drift_head_diagonals: float = 1.0):
         self.estimator = estimator
         self.inout_threshold = inout_threshold
         self.drift_head_diagonals = drift_head_diagonals
+
+    def _in_frame(self, point, inout) -> bool:
+        """Whether an estimate counts as looking inside the frame. Estimators
+        without an in/out head return NaN, which is treated as inside; an
+        estimator that produced no point is treated as outside."""
+        if np.isnan(point[0]):
+            return False
+        return bool(np.isnan(inout) or inout >= self.inout_threshold)
 
     def _record(self, row, image, bbox, point, inout, in_frame, trigger, lost, heatmap) -> dict:
         return {
@@ -75,15 +90,14 @@ class GazeTrackingAgent:
                     trigger = drift > self.drift_head_diagonals * head_diag
 
             if trigger:
-                person = PersonContext(head_bbox_px=bbox, description=row.get("look_like"))
-                pred = self.estimator.predict(image, person)
+                pred = self.estimator.predict(image, person_context(row, bbox))
                 point, inout, heatmap = (pred.x_px, pred.y_px), pred.inout_score, pred.heatmap
-                in_frame = inout >= self.inout_threshold
+                in_frame = self._in_frame(point, inout)
                 if in_frame:
                     point = tracker.init(to_bgr(image), point)
                     have_point, anchor = True, point
                 else:
-                    # looking outside the frame: nothing to track or score AUC on
+                    # looking outside the frame (or no estimate): nothing to track or score AUC on
                     have_point, anchor, heatmap = False, None, None
 
             out.append(self._record(row, image, bbox, point, inout, in_frame, trigger, lost, heatmap))
@@ -92,12 +106,16 @@ class GazeTrackingAgent:
     def run_track_dense(self, track_rows: pd.DataFrame) -> list[dict]:
         """Baseline: run the estimator on every frame."""
         out = []
+        # an estimator replaying cached predictions only needs the image size,
+        # so the JPEG is not decoded (Image.open reads the header lazily)
+        needs_pixels = getattr(self.estimator, "needs_pixels", True)
         for _, row in track_rows.sort_values("frame").iterrows():
-            image = Image.open(row["image_path"]).convert("RGB")
+            image = Image.open(row["image_path"])
+            if needs_pixels:
+                image = image.convert("RGB")
             bbox = head_bbox(row)
-            pred = self.estimator.predict(image, PersonContext(head_bbox_px=bbox, description=row.get("look_like")))
-            in_frame = pred.inout_score >= self.inout_threshold
-            out.append(self._record(
-                row, image, bbox, (pred.x_px, pred.y_px), pred.inout_score, in_frame, True, False, pred.heatmap
-            ))
+            pred = self.estimator.predict(image, person_context(row, bbox))
+            point = (pred.x_px, pred.y_px)
+            in_frame = self._in_frame(point, pred.inout_score)
+            out.append(self._record(row, image, bbox, point, pred.inout_score, in_frame, True, False, pred.heatmap))
         return out

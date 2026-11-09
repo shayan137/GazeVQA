@@ -1,8 +1,11 @@
 """Image-based gaze estimators: frame + person -> gaze point, in/out score
 and heatmap. Gaze-LLE is prompted with the head box, GazeAnywhere with the
-person's appearance description.
+person's appearance description. CachedEstimator replays a dense prediction
+cache written by benchmarks/gaze_estimators/<model>/export_dense.py, which is
+how third-party estimators are evaluated in both tracking modes.
 """
 
+import json
 import os
 import sys
 from dataclasses import dataclass
@@ -17,6 +20,10 @@ from PIL import Image
 class PersonContext:
     head_bbox_px: tuple[float, float, float, float] | None = None
     description: str | None = None
+    # identity of the person-frame, needed by CachedEstimator
+    clip: str | None = None
+    person_id: str | None = None
+    frame: int | None = None
 
 
 @dataclass
@@ -92,6 +99,52 @@ class GazeAnywhereEstimator:
         return GazePrediction(x_px=float(gx), y_px=float(gy), inout_score=float(inout), heatmap=heatmap)
 
 
+class CachedEstimator:
+    """Replays per-person-frame predictions from a dense cache (.npz).
+
+    The cache is written by benchmarks/gaze_estimators/<model>/export_dense.py
+    (file contract in benchmarks/common.py). Because every estimator is a
+    deterministic function of (frame, head box), replaying its dense
+    predictions on the trigger frames gives exactly what calling it live
+    would; the dense and tracking runs then differ only in which frames count
+    as estimator calls. A frame missing from the cache is an error.
+    """
+
+    needs_pixels = False  # predictions come from the cache, the image is only used for its size
+
+    def __init__(self, cache_path: str):
+        if not cache_path:
+            raise ValueError("estimator 'cached' needs cache_path (--cache)")
+        z = np.load(cache_path, allow_pickle=False)
+        clips = z["clip"].astype(str)
+        pids = z["person_id"].astype(str)
+        frames = z["frame"].astype(int)
+        self.index = {(c, p, int(f)): i for i, (c, p, f) in enumerate(zip(clips, pids, frames))}
+        if len(self.index) != len(clips):
+            raise ValueError(f"duplicate (clip, person_id, frame) rows in {cache_path}")
+        self.heatmap = z["heatmap64"]
+        self.point = z["point_norm"]
+        self.inout = z["inout"]
+        self.ok = z["ok"]
+        self.meta = json.loads(z["meta"].item()) if "meta" in z.files else {}
+        self.cache_path = cache_path
+        if self.meta.get("partial"):
+            print(f"[cached] warning: {cache_path} is a partial cache ({self.meta.get('rows_done')}/{self.meta.get('rows')} rows)")
+
+    def predict(self, image: Image.Image, person: PersonContext) -> GazePrediction:
+        key = (str(person.clip), str(person.person_id), int(person.frame))
+        try:
+            i = self.index[key]
+        except KeyError:
+            raise KeyError(f"{key} is not in the prediction cache {self.cache_path}") from None
+        if not bool(self.ok[i]):
+            return GazePrediction(float("nan"), float("nan"), float("nan"), None)
+        W, H = image.size
+        gx, gy = float(self.point[i, 0]), float(self.point[i, 1])
+        heatmap = torch.from_numpy(np.ascontiguousarray(self.heatmap[i], dtype=np.float32))
+        return GazePrediction(x_px=gx * W, y_px=gy * H, inout_score=float(self.inout[i]), heatmap=heatmap)
+
+
 def build_estimator(cfg):
     os.environ.setdefault("TORCH_HOME", os.path.join(cfg.model_cache_dir, "torch_hub"))
     os.environ.setdefault("HF_HOME", os.path.join(cfg.model_cache_dir, "huggingface"))
@@ -99,4 +152,6 @@ def build_estimator(cfg):
         return GazeLLEEstimator(cfg.gazelle_repo, cfg.gazelle_model, device=cfg.device)
     if cfg.estimator == "gaze_anywhere":
         return GazeAnywhereEstimator(cfg.gaze_anywhere_model, cfg.gaze_anywhere_repo, device=cfg.device)
-    raise ValueError(f"unknown estimator {cfg.estimator!r}, expected gazelle or gaze_anywhere")
+    if cfg.estimator == "cached":
+        return CachedEstimator(cfg.cache_path)
+    raise ValueError(f"unknown estimator {cfg.estimator!r}, expected gazelle, gaze_anywhere or cached")

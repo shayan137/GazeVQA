@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+data/
+outputs/
+model_cache/
+logs/
+gaze_bench_envs/
+gaze_ckpts/
+.DS_Store

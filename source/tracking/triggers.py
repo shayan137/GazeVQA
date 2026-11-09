@@ -11,6 +11,8 @@ import pandas as pd
 
 from source.tracking.openface import head_pose, load_openface
 
+POSE_COLUMNS = ["clip", "person_id", "frame", "yaw", "pitch", "valid"]
+
 
 def to_unit_vectors(yaw: np.ndarray, pitch: np.ndarray) -> np.ndarray:
     cos_p = np.cos(pitch)
@@ -81,14 +83,40 @@ def detect_events(steps: pd.DataFrame, threshold: float, min_peak_distance: int)
     return pd.DataFrame(events, columns=["clip", "person_id", "frame"])
 
 
+def load_cached_poses(path: str, rows: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Splits rows into those with a yaw/pitch in an earlier head_pose output
+    (returned as poses) and those that still need OpenFace."""
+    cached = pd.read_csv(path, dtype={"clip": str, "person_id": str}, usecols=lambda c: c in POSE_COLUMNS)
+    cached["frame"] = pd.to_numeric(cached["frame"]).astype(int)
+    if "valid" not in cached:
+        cached["valid"] = np.isfinite(cached["yaw"]) & np.isfinite(cached["pitch"])
+    cached["valid"] = cached["valid"].astype(bool)
+    cached = cached.drop_duplicates(["clip", "person_id", "frame"])
+
+    keys = rows[["clip", "person_id", "frame"]].copy()
+    keys["clip"] = keys["clip"].astype(str)
+    keys["person_id"] = keys["person_id"].astype(str)
+    keys["frame"] = keys["frame"].astype(int)
+    merged = keys.merge(cached, on=["clip", "person_id", "frame"], how="left", indicator=True)
+    hit = (merged["_merge"] == "both").to_numpy()
+    poses = merged.loc[hit, POSE_COLUMNS].reset_index(drop=True)
+    return poses, rows[~hit]
+
+
 def find_triggers(rows: pd.DataFrame, cfg) -> pd.DataFrame:
     """One row per (clip, person_id, frame) where the estimator should run."""
-    model = load_openface(cfg.openface_root, cfg.openface_checkpoint, device=cfg.device)
-    poses = head_pose(rows, model, device=cfg.device)
-    del model
-    if cfg.device != "cpu":
-        import torch
-        torch.cuda.empty_cache()
+    cache = getattr(cfg, "openface_cache_csv", "")
+    poses, todo = load_cached_poses(cache, rows) if cache else (None, rows)
+    if poses is not None:
+        print(f"[triggers] OpenFace yaw/pitch for {len(poses)} of {len(rows)} person-frames read from {cache}")
+    if len(todo):
+        model = load_openface(cfg.openface_root, cfg.openface_checkpoint, device=cfg.device)
+        fresh = head_pose(todo, model, device=cfg.device)
+        del model
+        if cfg.device != "cpu":
+            import torch
+            torch.cuda.empty_cache()
+        poses = fresh[POSE_COLUMNS] if poses is None else pd.concat([poses, fresh[POSE_COLUMNS]], ignore_index=True)
 
     events = detect_events(angular_steps(poses), cfg.trigger_threshold_deg, cfg.min_peak_distance)
     first = rows.sort_values(["clip", "person_id", "frame"]).groupby(["clip", "person_id"], as_index=False).first()

@@ -3,6 +3,7 @@
 run the gaze tracking agent on every person track: OpenFace finds the
 trigger frames, the gaze estimator runs on those, optical flow follows the
 gaze point in between. With --dense the estimator runs on every frame instead.
+With --estimator cached a dense prediction cache (benchmarks/) is replayed.
 """
 import argparse
 import os
@@ -14,7 +15,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 from source.config import TrackingConfig
-from source.data.childplay import load_labels
+from source.data.childplay import load_labels, propagate_look_like
 from source.tracking.agent import OUTPUT_COLUMNS, GazeTrackingAgent
 from source.tracking.estimators import build_estimator
 from source.tracking.triggers import find_triggers
@@ -26,28 +27,40 @@ def main():
     ap.add_argument("--labels-dir", default=None, help="overrides cfg.labels_dir")
     ap.add_argument("--frames-dir", default=None, help="overrides cfg.frames_dir")
     ap.add_argument("--output-csv", default=None, help="overrides cfg.output_csv")
-    ap.add_argument("--estimator", default=None, choices=["gazelle", "gaze_anywhere"], help="overrides cfg.estimator")
+    ap.add_argument("--estimator", default=None, choices=["gazelle", "gaze_anywhere", "cached"], help="overrides cfg.estimator")
+    ap.add_argument("--cache", default=None, help="dense prediction cache (.npz) for --estimator cached, overrides cfg.cache_path")
+    ap.add_argument("--openface-cache", default=None, help="yaw/pitch CSV from an earlier run, overrides cfg.openface_cache_csv")
+    ap.add_argument("--propagate-look-like", action="store_true", help="copy each track's appearance description to all of its frames")
     ap.add_argument("--dense", action="store_true", help="run the estimator on every frame (baseline)")
     ap.add_argument("--clips", default=None, help="comma-separated clip names, default all")
     ap.add_argument("--resume", action="store_true", help="skip tracks already in the output CSV")
     args = ap.parse_args()
 
     cfg = TrackingConfig.from_yaml(args.config)
-    for key in ("labels_dir", "frames_dir", "output_csv", "estimator"):
-        if getattr(args, key):
-            setattr(cfg, key, getattr(args, key))
+    overrides = {
+        "labels_dir": "labels_dir", "frames_dir": "frames_dir", "output_csv": "output_csv",
+        "estimator": "estimator", "cache_path": "cache", "openface_cache_csv": "openface_cache",
+    }
+    for key, arg in overrides.items():
+        if getattr(args, arg):
+            setattr(cfg, key, getattr(args, arg))
     cfg.dense = cfg.dense or args.dense
+    cfg.propagate_look_like = cfg.propagate_look_like or args.propagate_look_like
 
     rows = load_labels(cfg.labels_dir, cfg.frames_dir)
     if args.clips:
         rows = rows[rows["clip"].isin(args.clips.split(","))]
+    if cfg.propagate_look_like:
+        rows = propagate_look_like(rows)
     print(f"[tracking] {len(rows)} person-frames, {rows.groupby(['clip', 'person_id']).ngroups} tracks")
 
     triggers = None if cfg.dense else find_triggers(rows, cfg)
+    if triggers is not None:
+        print(f"[tracking] {len(triggers)} trigger frames from OpenFace (incl. first frames)")
     rows = rows[rows["bbox_valid"] & rows["image_exists"]]
 
     agent = GazeTrackingAgent(build_estimator(cfg), cfg.inout_threshold, cfg.drift_head_diagonals)
-    print(f"[tracking] estimator: {cfg.estimator}, mode: {'dense' if cfg.dense else 'sparse'}")
+    print(f"[tracking] estimator: {cfg.estimator}{' (' + cfg.cache_path + ')' if cfg.estimator == 'cached' else ''}, mode: {'dense' if cfg.dense else 'sparse'}")
 
     os.makedirs(os.path.dirname(os.path.abspath(cfg.output_csv)), exist_ok=True)
     done = set()

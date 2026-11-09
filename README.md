@@ -1,178 +1,181 @@
+<p align="center">
+  <img src="figs/tasks.png" width="100%" alt="G3VQA: question types and their share of the benchmark">
+</p>
 
 <h1 align="center">Attention in Motion: G<sup>3</sup>VQA for<br/>Social Gaze Understanding in Video</h1>
 
-**G<sup>3</sup>VQA** (Group Glance Gaze VQA) is a manually annotated video gaze VQA benchmark for temporal and social gaze reasoning. It contains **381 video clips**, **6,517 annotated key frames** and **601,350 question-answer pairs** across **nine question types**, covering who is looking, what they look at, and how attention is shared between people over time.
-All gaze, appearance and social attention labels are made and checked by human annotators. No LLM or VLM is used to write the questions or answers.
-
 <p align="center">
-  <img src="figs/intro.png" width="100%" alt="G3VQA question types">
+  <a href="https://shayan137.github.io/GazeVQA/">Project page</a> ·
+  Paper (coming soon) ·
+  Data (coming soon)
 </p>
 
-## Benchmark
+**G<sup>3</sup>VQA** (Group Glance Gaze VQA) is a video benchmark for social and temporal gaze reasoning. It asks a vision language model who is looking, what they look at, how attention is shared between people, and how all of this changes over a clip.
 
-The questions are grouped into three categories and nine types:
+* 381 video clips from [ChildPlay](https://www.idiap.ch/en/scientific-research/data/childplay-gaze), with around 7K manually annotated key frames
+* around 900K frame level question answer pairs in nine question types
+* around 30K temporal questions in 21 templates that ask when, how often and in what order people look at objects and at each other, also while a face is hidden
+* every gaze, appearance and social attention label was made and checked by human annotators, and no language model wrote a question or an answer
+* a training free gaze tracking agent that gives the VLMs their gaze evidence and needs 83% less inference time than running the gaze estimator on every frame
 
-* **Gaze point & direction:** gaze point, gaze direction
+We tested 15 VLMs. The best one answers 41% of the questions correctly, and accuracy drops from 32% on frame level questions to 21% on temporal ones. The [project page](https://shayan137.github.io/GazeVQA/) has ten test videos with the gaze annotations and temporal questions drawn on them, and the numbers are in the paper.
+
+## Questions
+
+Frame level questions are asked on one image:
+
+* **Gaze point and direction:** gaze point, gaze direction
 * **Attended object:** gaze object description, counting, absent object, ambiguous description
 * **Social gaze:** shared gaze, exchanged gaze, group engagement
 
-<p align="center">
-  <img src="figs/tasks.png" width="100%" alt="G3VQA tasks and composition">
-</p>
+Temporal questions are asked on the whole clip. They are grouped into *when* (the answer is a frame number), *count* (how many times) and *memory* (which object or person, in which order, whether a target is revisited).
 
-The benchmark is built on [ChildPlay](https://www.idiap.ch/en/scientific-research/data/childplay-gaze). Annotators first corrected the gaze and head box labels of 50 ChildPlay videos and selected key frames. They then wrote the QA pairs for each key frame, which are propagated to the frames in between and reviewed again.
+The benchmark is built on ChildPlay. We first corrected the gaze and head box labels of 50 ChildPlay videos and picked the key frames. The annotators then wrote the questions for each key frame. These are carried to the frames in between and reviewed again.
 
-<p align="center">
-  <img src="figs/annotation.png" width="100%" alt="G3VQA annotation pipeline">
-</p>
+## How a model is tested
 
-## Evaluation
-
-Evaluation runs in two stages:
-
-1. **Gaze tracking.** A training-free agent predicts where every person looks in every frame. The image gaze estimator ([Gaze-LLE](https://github.com/fkryan/gazelle) or [GazeAnywhere](https://github.com/IrohXu/GazeAnywhere)) runs only when [OpenFace 3.0](https://github.com/CMU-MultiComp-Lab/OpenFace-3.0) detects a head/eye movement (or when the tracked point drifts). Between those frames, the gaze point is followed with Lucas-Kanade optical flow. This cuts gaze estimator calls from 4,440 to 714 (about 83% less inference time).
-2. **VQA.** The predicted gaze is drawn as a blue arrow from each person's head to their gaze target, and the frame and question are given to the VLM. Answers are scored by a text-only judge (Qwen3.8-27B, 0-5), which sees the question and the reference answer but not the image. We also report embedding similarity, BLEU-4, ROUGE-L and token F1.
-
-Gaze point and gaze direction questions are answered directly from the tracked gaze. The other six question types are answered by the VLM.
-
-## Results
-
-**Gaze tracking** (21 person tracks, 4,440 person-frames)
-
-| Method | Calls ↓ | AUC ↑ | Avg. L2 ↓ | Inout AP ↑ |
-|---|---|---|---|---|
-| Gaze-LLE (dense) | 4,440 | 0.9383 | 0.1300 | 0.9750 |
-| Gaze-LLE + ours | 714 | 0.9371 | 0.1307 | 0.9805 |
-| GazeAnywhere (dense) | 4,440 | 0.9234 | 0.1539 | 0.9215 |
-| GazeAnywhere + ours | 713 | 0.9323 | 0.1494 | 0.9265 |
-
-**VLMs on G<sup>3</sup>VQA** (Gaze-LLE predictions, Qwen3.8-27B judge)
-
-| Model | Judge ↑ | ≥4 (%) ↑ | Embed. ↑ |
-|---|---|---|---|
-| Molmo2-O-7B | 1.455 | 23.1 | 0.470 |
-| Qwen3.5-0.8B | 1.451 | 24.3 | 0.443 |
-| Qwen3.5-2B | 1.907 | 31.5 | 0.481 |
-| InternVL3.5-2B | 1.594 | 22.5 | 0.475 |
-| InternVL3.5-4B | 1.806 | 28.1 | 0.475 |
-| Molmo2-4B | 1.506 | 24.8 | 0.489 |
-| Molmo2-8B | 1.603 | 27.2 | 0.495 |
-| InternVL3.5-8B | 1.579 | 22.7 | 0.480 |
-| InternVL3.5-14B | 1.804 | 26.4 | 0.477 |
-| InternVL3.5-GPT-OSS-20B-A4B | 1.536 | 21.7 | 0.469 |
-| Qwen3.5-27B | 2.068 | 34.8 | 0.441 |
-| InternVL3.5-30B-A3B | 1.729 | 26.2 | 0.482 |
-| Qwen3.6-35B-A3B | 2.047 | 34.3 | 0.426 |
-| Qwen3.5-35B-A3B | 2.027 | 35.0 | 0.446 |
-| InternVL3.5-38B | 1.975 | 30.6 | 0.483 |
-| Qwen3.5-122B-A10B | **2.103** | **35.9** | 0.420 |
+1. **Gaze tracking.** The agent estimates where every person looks. An image gaze estimator ([PaGE](https://arxiv.org/abs/2607.04860) in our runs, [Gaze-LLE](https://github.com/fkryan/gazelle) and [GazeAnywhere](https://github.com/IrohXu/GazeAnywhere) also work) runs only on the first frame of a person, when [OpenFace 3.0](https://github.com/CMU-MultiComp-Lab/OpenFace-3.0) sees the head or eyes move by more than 2 degrees, or when the tracked point drifts more than one head diagonal. In between, Lucas Kanade optical flow follows the gaze point.
+2. **Grounding.** For the attended object, a detector (RF-DETR, YOLO26 or WeDetect) proposes boxes and the box that fits the predicted gaze best is chosen, with the grounding method of [Gaze Target Agent](https://github.com/shayan137/Gaze-Target-Agent) ([paper](https://arxiv.org/abs/2609.06208)).
+3. **Question answering.** The predicted gaze is drawn as a blue arrow from the head of each person to the gaze point. The VLM gets the image, or a video of at most 64 frames with the frame number printed in the corner, and the question. Scene questions show the arrows of all tracked people, questions about one person show one arrow, and ambiguous descriptions show none.
+4. **Scoring.** Questions whose answer is yes or no, a count or a frame are scored by exact match on the verdict that is found in the free text answer. These are about 28% of all questions. All other answers are judged by [AnyJev](https://github.com/nokia-applied-research/AnyJev), a decision model that returns the probability that an answer is correct in one forward pass. An answer counts as correct at a probability of 0.5 or more. Accuracy is reported for the groups Individual, Ambiguous and Group (frame level), When, Count and Memory (temporal) and for all questions together.
 
 ## Installation
 
 ```bash
-git clone https://github.com/shayan137/G3VQA.git
-cd G3VQA
+git clone https://github.com/shayan137/GazeVQA.git
+cd GazeVQA
 pip install -r requirements.txt
 ```
 
-Gaze-LLE, GazeAnywhere and the embedding model are downloaded automatically into `model_cache_dir` on first use. You also need:
+Gaze-LLE, GazeAnywhere and the other Hugging Face models are downloaded into `model_cache_dir` on first use. You also need:
 
 * [OpenFace 3.0](https://github.com/CMU-MultiComp-Lab/OpenFace-3.0) and its multitask checkpoint (`stage2_epoch_7_loss_1.1606_acc_0.5589.pth`), set in `configs/tracking.yaml`
-* [vLLM](https://github.com/vllm-project/vllm) to serve the answering model and the judge
-* for GazeAnywhere only, a clone of its [GitHub repo](https://github.com/IrohXu/GazeAnywhere) (`gaze_anywhere_repo`)
+* [vLLM](https://github.com/vllm-project/vllm) to serve the VLMs and the judge
+* a separate Python environment for PaGE, made by `benchmarks/gaze_estimators/page/setup_env.sh`
+* for GazeAnywhere only, a clone of its [repository](https://github.com/IrohXu/GazeAnywhere)
 
-## 📦 Data Preparation
+## Data
 
-1. Download the ChildPlay videos and `clips.csv`, then extract the frames:
+1. Download the ChildPlay videos and `clips.csv` and extract the frames:
 
 ```bash
 python scripts/extract_frames.py --clips-csv /path/to/ChildPlay/clips.csv \
   --videos-dir /path/to/ChildPlay/videos --frames-dir data/frames --labels-dir data/labels
 ```
 
-2. Download the G<sup>3</sup>VQA annotations (link coming soon) and arrange everything as:
+2. Download the G<sup>3</sup>VQA annotations (link coming soon) and arrange everything like this:
 
 ```text
 data/
-  frames/<clip>/<clip>_000001.jpg   # clip-relative, 1-indexed
-  labels/<clip>.csv                 # head boxes, gaze points, appearance ("look like")
-  vqa/<clip>.json                   # questions and reference answers
+  frames/<clip>/<clip>_000001.jpg        # clip relative frame numbers, starting at 1
+  labels/<clip>.csv                      # head boxes, gaze points, object boxes, appearance ("look like")
+  annotations/test/<clip>_VQA.csv        # frame level questions and reference answers
+  annotations/test/<clip>_temporal.csv   # temporal questions and reference answers
 ```
 
-## 🔨 Usage
+## Usage
 
 ### 1. Gaze tracking
 
+PaGE runs in its own environment, so its predictions are computed once for every person in every frame and the agent replays them. The agent then counts only the frames on which it would have called the estimator.
+
 ```bash
+python scripts/export_frame_list.py --labels-dir data/labels --frames-dir data/frames \
+  --out outputs/gaze_benchmark/frame_list.csv
+
+bash benchmarks/gaze_estimators/page/setup_env.sh
+gaze_bench_envs/page/bin/python benchmarks/gaze_estimators/page/export_dense.py \
+  --frame-list outputs/gaze_benchmark/frame_list.csv --out outputs/gaze_benchmark/caches/page.npz
+
 python scripts/run_tracking.py --config configs/tracking.yaml
+python scripts/run_tracking.py --config configs/tracking.yaml --dense --output-csv outputs/tracking/page_dense.csv
+python scripts/eval_tracking.py outputs/tracking/page_dense.csv outputs/tracking/page_tracking.csv
 ```
 
-This runs OpenFace on all head crops to find the trigger frames, then tracks every person. Use `--estimator gaze_anywhere` to switch the estimator and `--clips a,b` for a quick test. For the per-frame baseline and the comparison:
+`eval_tracking.py` prints the number of estimator calls, AUC, average L2 distance and in or out AP. To run Gaze-LLE or GazeAnywhere directly, use `--estimator gazelle` or `--estimator gaze_anywhere`. The folders of Sharingan and Gupta et al. in `benchmarks/gaze_estimators/` work the same way as the PaGE one.
+
+### 2. Grounding
 
 ```bash
-python scripts/run_tracking.py --config configs/tracking.yaml --dense --output-csv outputs/tracking/gazelle_dense.csv
-python scripts/eval_tracking.py outputs/tracking/gazelle_dense.csv outputs/tracking/gazelle_tracking.csv
+python benchmarks/grounding/run_detect.py --detector rfdetr_2xl       # or yolo26x, wedetect_large_uni
+python benchmarks/grounding/select_gaze_target.py --detector rfdetr_2xl
+python benchmarks/grounding/eval_grounding.py --ann-dir data/labels
 ```
 
-### 2. VQA
+The last step prints mIoU, Acc@50, Acc@75 and AP@50 against the annotated object boxes.
 
-Serve the answering model and the judge with vLLM:
+### 3. Question answering
+
+Render the images and videos that the models see once, so that the answer jobs only read files:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3.5-27B --served-model-name qwen3.5-27b --port 8000 --max-model-len 8192 --trust-remote-code
-CUDA_VISIBLE_DEVICES=1 vllm serve /path/to/Qwen3.8-27B --served-model-name qwen3.8-27b --port 8001 --max-model-len 16384 --trust-remote-code
+python scripts/render_vqa_inputs.py --questions-dir data/annotations/test \
+  --predictions-csv outputs/tracking/page_tracking.csv --frames-dir data/frames \
+  --out-dir outputs/vqa_inputs --images --videos
 ```
 
-Then run:
+Serve a model with vLLM and ask it every question:
 
 ```bash
-python scripts/run_vqa.py --config configs/vqa.yaml --answer-model qwen3.5-27b \
-  --output-csv outputs/vqa/qwen3.5-27b.csv
+vllm serve Qwen/Qwen3.5-27B --served-model-name qwen3.5-27b --port 8000 --max-model-len 32768 \
+  --limit-mm-per-prompt '{"image": 1, "video": 1}' --media-io-kwargs '{"video": {"num_frames": -1}}' --trust-remote-code
+
+python scripts/run_vqa.py --config configs/vqa.yaml --answer-model qwen3.5-27b --output-csv outputs/vqa/qwen3.5-27b.csv
 ```
 
-Every question, reference answer, model answer, judge score and embedding similarity is written to one CSV. `--resume` continues an interrupted run. `slurm/run_vqa.sbatch` does both steps on one SLURM node.
+Every question, reference answer, model answer and what was sent to the model is written to one CSV. `--resume` continues an interrupted run, and `slurm/run_vqa.sbatch` does both steps on a SLURM node.
 
-A model too large to share a node with the judge can run with `--no-judge` and be judged afterwards:
+### 4. Scores
+
+Serve the judge, score the free text answers, and combine them with the exact matches:
 
 ```bash
-python scripts/rejudge_vqa.py --config configs/vqa.yaml \
-  --input-csv outputs/vqa/qwen3.5-122b-a10b_answers.csv --output-csv outputs/vqa/qwen3.5-122b-a10b.csv
+vllm serve morriszjm/Tacit-9B --port 8100 --max-model-len 16384 --limit-mm-per-prompt '{"image": 0, "video": 0}'
+python scripts/judge_answers.py --server http://localhost:8100 --model-path morriszjm/Tacit-9B \
+  --answers-dir outputs/vqa --out-dir outputs/judge
+
+python scripts/score_vqa.py --answers-dir outputs/vqa --judge-dir outputs/judge --out outputs/scores.csv
 ```
 
-### 3. Scores
+`slurm/judge_answers.sbatch` does the first two commands on one node. `score_vqa.py` prints one row per model with the accuracy of every group and the share of answers that were scored by exact match.
 
-```bash
-python scripts/eval_vqa.py outputs/vqa/*.csv --by-type
-```
+## Code structure
 
-The judge score is averaged over judged answers. The ≥4 rate is over all questions, so an unanswered question counts as wrong.
-
-## 🗂️ Code Structure
-
-```
+```text
 source/
-  config.py                  # TrackingConfig, VQAConfig (YAML)
+  config.py                  # TrackingConfig and VQAConfig (YAML)
   data/
-    childplay.py             # per-clip label CSVs
+    childplay.py             # per clip label CSVs
     vqa.py                   # question files and question types
   tracking/
-    agent.py                 # GazeTrackingAgent: estimator on triggers, optical flow in between
-    estimators.py            # Gaze-LLE and GazeAnywhere
-    openface.py              # head/eye direction from OpenFace 3.0
-    triggers.py              # movement events -> trigger frames
-    point_tracker.py         # Lucas-Kanade point tracker
-    metrics.py               # AUC, L2, Inout AP
+    agent.py                 # the tracking agent: estimator on trigger frames, optical flow in between
+    estimators.py            # Gaze-LLE, GazeAnywhere and the replay of cached predictions (PaGE)
+    openface.py              # head and eye direction from OpenFace 3.0
+    triggers.py              # direction changes become trigger frames
+    point_tracker.py         # Lucas Kanade point tracker
+    metrics.py               # AUC, L2, in or out AP
   vqa/
-    visual_prompt.py         # gaze arrows + prompt text
+    visual_prompt.py         # gaze arrows and the sentence before the question
     predictions.py           # gaze predictions for each question
+    media.py, video.py       # which rendered image or video belongs to a question
     backend.py               # vLLM client
-    judge.py                 # judge prompt and score parsing
-    metrics.py               # embedding, BLEU-4, ROUGE-L, token F1
-    runner.py                # concurrent answering and judging
+    runner.py                # concurrent answering
+    closed_form.py           # exact match of yes or no, counts and frames
 scripts/
-  extract_frames.py, run_tracking.py, eval_tracking.py, run_vqa.py, rejudge_vqa.py, eval_vqa.py
-configs/
-  tracking.yaml, vqa.yaml
-slurm/
-  run_vqa.sbatch
+  extract_frames.py, export_frame_list.py, run_tracking.py, eval_tracking.py,
+  render_vqa_inputs.py, run_vqa.py, judge_answers.py, score_vqa.py
+benchmarks/
+  gaze_estimators/           # dense prediction export for PaGE, Gaze-LLE, GazeAnywhere, Sharingan, Gupta et al.
+  grounding/                 # detectors, gaze target selection and grounding metrics
+configs/                     # tracking.yaml, vqa.yaml
+slurm/                       # run_vqa.sbatch, judge_answers.sbatch
+docs/                        # the project page (GitHub Pages)
 ```
+
+## Citation
+
+The paper is under review. A BibTeX entry will be added here after publication.
+
+## Acknowledgements
+
+G<sup>3</sup>VQA builds on [ChildPlay](https://www.idiap.ch/en/scientific-research/data/childplay-gaze). We use [PaGE](https://arxiv.org/abs/2607.04860), [Gaze-LLE](https://github.com/fkryan/gazelle), [GazeAnywhere](https://github.com/IrohXu/GazeAnywhere), [OpenFace 3.0](https://github.com/CMU-MultiComp-Lab/OpenFace-3.0) and [AnyJev](https://github.com/nokia-applied-research/AnyJev), and we follow the grounding method of [Gaze Target Agent](https://github.com/shayan137/Gaze-Target-Agent).
