@@ -52,7 +52,7 @@ function buildClip(clip, n, total) {
   );
 
   const video = el("video", {
-    src: clip.video, muted: "", loop: "", playsinline: "", controls: "", preload: "metadata",
+    src: clip.video, muted: "", playsinline: "", controls: "", preload: "metadata",
     width: clip.width, height: clip.height,
   });
   video.muted = true;
@@ -162,7 +162,9 @@ function buildClip(clip, n, total) {
     else section.userPaused = true;
     render(indexAt(video.currentTime));
   });
-  video.addEventListener("play", () => { section.userPaused = false; });
+  // At the end the video stays on its last frame. Only the play button starts it again from the beginning.
+  video.addEventListener("ended", () => { section.finished = true; });
+  video.addEventListener("play", () => { section.userPaused = false; section.finished = false; });
 
   section.video = video;
   section.alignQuestions = alignQuestions;
@@ -185,13 +187,13 @@ async function main() {
   });
 
   // Play the video that is on screen and pause the ones that scrolled away.
-  // A video that the visitor paused stays paused.
+  // A video that the visitor paused stays paused, and so does one that has finished.
   const observer = new IntersectionObserver((entries) => {
     for (const e of entries) {
       const v = e.target;
       const s = v.closest(".clip");
       if (e.isIntersecting) {
-        if (v.paused && !s.userPaused) v.play().catch(() => {});
+        if (v.paused && !s.userPaused && !s.finished) v.play().catch(() => {});
       } else if (!v.paused) {
         s.autoPaused = true;
         v.pause();
