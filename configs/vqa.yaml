@@ -1,18 +1,18 @@
-vqa_dir: data/vqa
-predictions_csv: outputs/tracking/gazelle_tracking.csv
+# Ask every test question to one VLM. Fill in the paths, see "Data" in the README.
+vqa_dir: data/annotations/test           # <clip>_VQA.csv and <clip>_temporal.csv of every test clip
+question_format: csv
+extended: true                           # also ask group engagement and the whole-video (temporal) questions
+predictions_csv: outputs/tracking/page_tracking.csv
 frames_dir: data/frames
+media_dir: outputs/vqa_inputs            # made by scripts/render_vqa_inputs.py
+video_transport: data                    # data: the mp4 is sent inside the request, file: the server reads the path (--allowed-local-media-path)
 output_csv: outputs/vqa/qwen3.5-27b.csv
 
-# Served model names of the two vLLM servers (vllm serve ... --served-model-name).
+# vllm serve <model> --served-model-name <answer_model> --port 8000
 answer_url: http://localhost:8000/v1
 answer_model: qwen3.5-27b
-judge_url: http://localhost:8001/v1
-judge_model: qwen3.8-27b
 
-embedding_model: sentence-transformers/all-MiniLM-L6-v2
 model_cache_dir: model_cache
-
 max_concurrency: 128
 max_new_tokens: 4096
-judge_max_new_tokens: 4096
-request_timeout: 120
+request_timeout: 1800                    # a video prompt has about 12k tokens and waits behind the other requests

@@ -3,7 +3,6 @@ torchvision
 timm
 transformers>=5.15
 huggingface_hub
-sentence-transformers
 opencv-python
 numpy
 pandas
@@ -12,6 +11,11 @@ scikit-learn
 tqdm
 pyyaml
 httpx
+# AnyJev judge (scripts/judge_answers.py)
+anyjev
 # GazeAnywhere only
 ftfy
 fvcore
+# Grounding detectors (benchmarks/grounding)
+rfdetr
+ultralytics

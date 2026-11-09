@@ -37,6 +37,14 @@ class GazePredictions:
             self.by_person[(row.clip, row.person_id, int(row.frame))] = row
             self.by_frame.setdefault((row.clip, int(row.frame)), []).append(row)
 
+    def clip_tracks(self, clip: str) -> dict:
+        """{person_id: {frame: (head_xy, gaze_xy)}} for one clip, frames with a gaze point only."""
+        tracks = {}
+        for (c, pid, frame), p in self.by_person.items():
+            if c == clip and not pd.isna(p.point_x):
+                tracks.setdefault(pid, {})[frame] = self._arrow(p)
+        return tracks
+
     @staticmethod
     def _arrow(p):
         return head_center(p.head_x1, p.head_y1, p.head_x2, p.head_y2), (p.point_x, p.point_y)

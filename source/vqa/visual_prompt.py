@@ -8,7 +8,8 @@ import cv2
 from PIL import Image
 
 ARROW_COLOR_BGR = (255, 0, 0)
-ARROW_WIDTH_PX = 4
+# 5 px was the best width in the GTA overlay ablation (blue, GazeFollow; 4 to 6 px are within noise).
+ARROW_WIDTH_PX = 5
 
 Point = tuple[float, float]
 
@@ -36,9 +37,14 @@ def build_overlay(image_path, arrows: list[tuple[Point, Point]]) -> Image.Image:
     return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
 
-def build_prompt(question: str, is_scene: bool, has_overlay: bool = True) -> str:
+def build_prompt(question: str, is_scene: bool, has_overlay: bool = True, temporal: bool = False) -> str:
+    """Single sentence before the question. For whole-video questions the same wording is
+    extended with the burned-in frame number, which the answers refer to."""
     if not has_overlay:
         return question
+    if temporal:
+        who = "The blue arrows show where the people are looking" if is_scene else "The blue arrow shows where the person looks"
+        return f"{who} throughout the video. The number in the top-left corner is the frame index. {question}"
     if is_scene:
         return f"The blue arrows show where the people are looking. {question}"
     return f"The blue arrow shows where the person looks. {question}"
