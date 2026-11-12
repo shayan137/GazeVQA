@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Dense GazeAnywhere predictions for every person-frame -> cache.
 The text prompt is the person's appearance description (propagated over the track in the
-frame list); person-frames without any description use "the person". Runs in the G3VQA
+frame list); person-frames without any description use "the person". Runs in the W3GazeVQA
 (childplay) environment."""
 import argparse
 import os

@@ -60,7 +60,7 @@ class TrackingConfig:
 
 @dataclasses.dataclass
 class VQAConfig:
-    vqa_dir: str  # per-clip G3VQA question files, <clip>.json (question_format json) or csv/test of an annotation package (csv)
+    vqa_dir: str  # per-clip W3GazeVQA question files, <clip>.json (question_format json) or csv/test of an annotation package (csv)
     predictions_csv: str  # output of scripts/run_tracking.py
     frames_dir: str
     output_csv: str

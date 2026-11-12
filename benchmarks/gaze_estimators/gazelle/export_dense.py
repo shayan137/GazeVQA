@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Dense Gaze-LLE predictions for every benchmark person-frame -> cache.
-Runs in the G3VQA environment; used to check the cached replay against the
+Runs in the W3GazeVQA environment; used to check the cached replay against the
 live estimator."""
 import argparse
 import os

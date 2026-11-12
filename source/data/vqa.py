@@ -1,4 +1,4 @@
-"""G3VQA question files. Two layouts are read: one <clip>.json per clip with a "vqa" list of
+"""W3GazeVQA question files. Two layouts are read: one <clip>.json per clip with a "vqa" list of
 {id, frame, person_id, question, answers}, or the annotation export with <clip>_VQA.csv
 (clip, frame, person_id, question, answer1..K) and <clip>_temporal.csv for the whole-video questions.
 

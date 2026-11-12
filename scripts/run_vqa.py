@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Answer every G3VQA question with a VLM served by vLLM. The model sees the frame
+Answer every W3GazeVQA question with a VLM served by vLLM. The model sees the frame
 (or the video, for the temporal questions) with blue gaze arrows drawn from the
 tracking predictions. The answers are scored afterwards with scripts/score_vqa.py
 and scripts/judge_answers.py.
