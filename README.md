@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="figs/tasks.png" width="100%" alt="G3VQA: question types and their share of the benchmark">
+  <img src="figs/Benchmark.png" width="100%" alt="G3VQA: question types and their share of the benchmark">
 </p>
 
 <h1 align="center">Attention in Motion: G<sup>3</sup>VQA for<br/>Social Gaze Understanding in Video</h1>
