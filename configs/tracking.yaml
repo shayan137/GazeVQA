@@ -1,0 +1,33 @@
+# Gaze tracking agent. Fill in the paths, see "Data" in the README.
+labels_dir: data/labels
+frames_dir: data/frames
+output_csv: outputs/tracking/page_tracking.csv
+
+# gazelle | gaze_anywhere | cached
+# "cached" replays a dense prediction cache written by benchmarks/gaze_estimators/<model>/export_dense.py.
+# This is how PaGE is used, because it runs in its own Python environment.
+estimator: cached
+cache_path: outputs/gaze_benchmark/caches/page.npz
+dense: false              # true runs the estimator on every frame (the baseline)
+device: cuda
+
+# Every automatically downloaded model goes into this folder.
+model_cache_dir: model_cache
+gazelle_repo: fkryan/gazelle
+gazelle_model: gazelle_dinov2_vitl14_inout
+gaze_anywhere_model: IrohXu/GazeAnywhere
+gaze_anywhere_repo: /path/to/GazeAnywhere     # only for gaze_anywhere
+propagate_look_like: false                    # gaze_anywhere reads the appearance description of the person, set true for it
+
+# OpenFace 3.0 and its multitask checkpoint
+openface_root: /path/to/OpenFace-3.0
+openface_checkpoint: /path/to/OpenFace-3.0/weights/stage2_epoch_7_loss_1.1606_acc_0.5589.pth
+# Optional: yaw and pitch of every head crop from an earlier run. OpenFace then only runs on the crops that are not in this file.
+openface_cache_csv: ""
+
+# Call the estimator again when the head or eye direction changes by more than this many degrees between two frames,
+# or when the tracked point has moved more than drift_head_diagonals head diagonals away from the last estimate.
+trigger_threshold_deg: 2.0
+min_peak_distance: 3
+drift_head_diagonals: 1.0
+inout_threshold: 0.35
